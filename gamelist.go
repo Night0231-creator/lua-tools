@@ -139,11 +139,15 @@ func importStoreCatalog(dir, src string) (*StoreCatalog, error) {
 	if err != nil {
 		return nil, err
 	}
-	cat, err := catalogFromZIP(b)
-	if err != nil {
-		return nil, err
-	}
-	tmp, err := os.CreateTemp(dir, ".store-*.zip")
+
+    return importStoreCatalogBytes(dir,b)
+}
+
+// Only validated public catalogue metadata is persisted in app data.
+func importStoreCatalogBytes(dir string,b []byte)(*StoreCatalog,error){
+    cat,err:=catalogFromZIP(b)
+    if err!=nil{return nil,err}
+    tmp,err:=os.CreateTemp(dir,".store-*.zip")
 	if err != nil {
 		return nil, err
 	}

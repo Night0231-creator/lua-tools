@@ -84,3 +84,12 @@ A nova aba **Fontes** identifica provedores vistos no ecossistema LuaTools: Sadi
 Este recurso **não baixa manifests de terceiros, não transfere chaves de depots, não modifica a Steam, não desbloqueia DLCs ou jogos não licenciados**. Os serviços listados são independentes do Astronyx, podem mudar sem aviso, e os requisitos de acesso não são garantias de disponibilidade. Não é necessário inserir cookies, senhas ou chaves no app.
 
 Referências de pesquisa: [LuaTools](https://github.com/madoiscool/LuaTools), [Wiki de atualização de manifests](https://github.com/madoiscool/LuaTools-Wiki/blob/main/docs/luatools/scripts/manifest-updater.mdx), [Ryuu FAQ](https://generator.ryuu.lol/faq).
+
+## V2.3 — Consulta de fontes públicas e sincronização direta
+
+A aba **Fontes** verifica em segundo plano a disponibilidade da Steam Store e do repositório público [SteamTools-Team/GameList](https://github.com/SteamTools-Team/GameList), sem abrir navegador. **ONLINE indica apenas que o serviço de metadados respondeu; não indica download, chave de depot ou licença.**
+
+- **VERIFICAR FONTES:** atualiza o indicador da Steam Store e do GameList, sem solicitar dados de login.
+- **ATUALIZAR CATÁLOGO:** baixa o ZIP do GameList via HTTPS, limita tamanho, verifica seus JSON e App IDs e só então grava a base no diretório local do Astronyx. Erros não alteram o catálogo anterior.
+- **Sadie/Hubcap, Luie, Ryuu, Morrenus e espelhos comunitários:** continuam listados como **referências não conectadas**; o aplicativo não baixa seus scripts nem solicita tokens.
+- A sincronização é sob demanda, e os testes de disponibilidade ocorrem na abertura e periodicamente durante o uso. Nenhum arquivo da instalação Steam é modificado por essas operações.

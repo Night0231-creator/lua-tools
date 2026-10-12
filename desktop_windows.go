@@ -185,6 +185,7 @@ type guiState struct {
 	font, smallFont, titleFont, miniFont uintptr
 	editBrush                            uintptr
 	lastSearch                           string
+	sourceHealth                         []ProviderHealth
 }
 
 var ui *guiState
@@ -235,14 +236,14 @@ func runDesktop(app *App) {
 	ui.update = UpdateStatus{Current: appVersion}
 	ui.editBrush, _, _ = pCreateBrush.Call(inputBg)
 	hInstance, _, _ := k32.NewProc("GetModuleHandleW").Call(0)
-	wc := wndClass{Size: uint32(unsafe.Sizeof(wndClass{})), Instance: hInstance, ClassName: wptr("AstronyxSteamManagerNativeV221"), WndProc: syscall.NewCallback(wndProc)}
+	wc := wndClass{Size: uint32(unsafe.Sizeof(wndClass{})), Instance: hInstance, ClassName: wptr("AstronyxSteamManagerNativeV230"), WndProc: syscall.NewCallback(wndProc)}
 	wc.Cursor, _, _ = pLoadCursor.Call(0, 32512) // IDC_ARROW
 	a, _, e := pRegisterClassEx.Call(uintptr(unsafe.Pointer(&wc)))
 	if a == 0 {
 		showError("Não foi possível criar classe de janela: " + e.Error())
 		return
 	}
-	hwnd, _, e := pCreateWindow.Call(0, uintptr(unsafe.Pointer(wc.ClassName)), uintptr(unsafe.Pointer(wptr("Astronyx Steam Manager · V2.2.1"))), wsOverlappedWindow|wsVisible, 70, 55, 1240, 830, 0, 0, hInstance, 0)
+	hwnd, _, e := pCreateWindow.Call(0, uintptr(unsafe.Pointer(wc.ClassName)), uintptr(unsafe.Pointer(wptr("Astronyx Steam Manager · V2.3"))), wsOverlappedWindow|wsVisible, 70, 55, 1240, 830, 0, 0, hInstance, 0)
 	if hwnd == 0 {
 		showError("Não foi possível abrir o aplicativo: " + e.Error())
 		return
@@ -255,6 +256,8 @@ func runDesktop(app *App) {
 	updateResults()
 	pSetTimer.Call(hwnd, 1, 60000, 0)
 	go refreshUpdater()
+	go refreshSourceHealth()
+	pSetTimer.Call(hwnd, 2, 600000, 0)
 	var m msg
 	for {
 		ret, _, _ := pGetMessage.Call(uintptr(unsafe.Pointer(&m)), 0, 0, 0)
@@ -342,6 +345,8 @@ func wndProc(hwnd uintptr, message uint32, wparam, lparam uintptr) uintptr {
 	case wmTimer:
 		if wparam == 1 {
 			go refreshUpdater()
+		} else if wparam == 2 {
+			go refreshSourceHealth()
 		}
 		return 0
 	case wmApp + 1: // update status
@@ -351,7 +356,13 @@ func wndProc(hwnd uintptr, message uint32, wparam, lparam uintptr) uintptr {
 		updateMu.Unlock()
 		invalidate()
 		return 0
-	case wmApp + 2: // imported new ZIP
+	case wmApp + 6: // public metadata status
+        sourceHealthMu.Lock()
+        ui.sourceHealth = append([]ProviderHealth(nil), sourceHealthResult...)
+        sourceHealthMu.Unlock()
+        if ui.filter == "sources" { invalidate() }
+        return 0
+    case wmApp + 2: // imported new ZIP
 		catalogMu.Lock()
 		c := catalogCandidate
 		err := catalogErr
@@ -513,7 +524,7 @@ func paint(hdc uintptr) {
 	items, _ := ui.app.manifests.snapshot()
 	txt(hdc, fmt.Sprintf("%d manifests importados", len(items)), R(31, h-144, 170, 24), muted, ui.miniFont, dtLeft)
 	ui.button(hdc, R(29, h-105, 169, 37), "ABRIR PASTA", "folder", false)
-	txt(hdc, "V2.2.1 · APP NATIVO", R(32, h-49, 173, 22), muted, ui.miniFont, dtLeft)
+	txt(hdc, "V2.3 · APP NATIVO", R(32, h-49, 173, 22), muted, ui.miniFont, dtLeft)
 	left := int32(256)
 	mainW := w - left - 26
 	txt(hdc, "Sua biblioteca Steam, organizada.", R(left, 26, mainW-200, 38), fg, ui.titleFont, dtLeft)
@@ -604,25 +615,42 @@ func paint(hdc uintptr) {
 		txt(hdc, "Processando...", R(w-172, h-113, 144, 25), teal, ui.miniFont, dtRight)
 	}
 }
-// paintManifestSources is an in-app reference view, not a download or unlocker.
+// This view checks public metadata, not licenses, depots or protected manifests.
 func paintManifestSources(hdc uintptr, left, mainW, h int32) {
-    txt(hdc, "FONTES DE MANIFESTS", R(left, 236, mainW, 34), fg, ui.font, dtLeft)
-    txt(hdc, "Fontes independentes vistas na comunidade LuaTools. Nenhum provedor conectado.", R(left, 269, mainW, 26), muted, ui.smallFont, dtLeft)
-    sources := knownManifestProviders()
-    for i, source := range sources {
-        y := int32(309 + i*73)
-        if y+65 >= h-90 { break }
-        round(hdc, R(left, y, mainW, 66), panel, 12)
-        txt(hdc, source.Name, R(left+18, y+4, mainW-215, 30), fg, ui.font, dtLeft)
-        txt(hdc, source.Kind+"  •  "+source.Access, R(left+18, y+34, mainW-220, 23), muted, ui.smallFont, dtLeft)
-        pill := R(left+mainW-194, y+16, 176, 35)
-        round(hdc, pill, panelAlt, 10)
-        txt(hdc, "DETALHES", pill, fg, ui.smallFont, dtCenter)
-        ui.spot(pill, "source:"+strconv.Itoa(i))
+    txt(hdc, "FONTES ONLINE DE CATÁLOGOS", R(left,232,mainW,34),fg,ui.font,dtLeft)
+    txt(hdc, "Metadados públicos: nenhum script ou mecanismo de desbloqueio é executado.", R(left,268,mainW,24),muted,ui.smallFont,dtLeft)
+    for i,name:=range []string{"Steam Store (metadados)","GameList (GitHub público)"} {
+        y:=int32(301+i*59)
+        round(hdc,R(left,y,mainW,54),panel,12)
+        txt(hdc,name,R(left+15,y+4,mainW-230,27),fg,ui.font,dtLeft)
+        state,detail,stateColor:="AGUARDANDO TESTE","Verificação em segundo plano",muted
+        if len(ui.sourceHealth)>i {
+            if ui.sourceHealth[i].Online {state,stateColor="ONLINE",teal} else {state="INDISPONÍVEL"}
+            detail=ui.sourceHealth[i].Detail
+        }
+        txt(hdc,detail,R(left+15,y+29,mainW-245,20),muted,ui.miniFont,dtLeft)
+        txt(hdc,state,R(left+mainW-216,y+10,194,34),stateColor,ui.smallFont,dtRight)
     }
-    fill(hdc, R(226, h-94, ui.width-226, 94), sideBg)
-    txt(hdc, "Arquivos públicos não concedem licenças Steam; nenhuma ativação é realizada.", R(left, h-82, mainW, 27), muted, ui.smallFont, dtLeft)
-    ui.button(hdc, R(left, h-48, 172, 35), "VOLTAR", "filter:all", false)
+    txt(hdc,"REFERÊNCIAS LUATOOLS (NÃO CONECTADAS)",R(left,433,mainW,25),muted,ui.smallFont,dtLeft)
+    sources:=knownManifestProviders()
+    for i,src:=range sources {
+        y:=int32(462+i*46)
+        if y+42>=h-104 {break}
+        round(hdc,R(left,y,mainW,42),panel,9)
+        txt(hdc,src.Name,R(left+13,y+3,240,34),fg,ui.smallFont,dtLeft)
+        txt(hdc,src.Access,R(left+260,y+5,mainW-395,31),muted,ui.miniFont,dtLeft)
+        pill:=R(left+mainW-118,y+5,102,32)
+        round(hdc,pill,panelAlt,8)
+        txt(hdc,"DETALHES",pill,fg,ui.miniFont,dtCenter)
+        ui.spot(pill,"source:"+strconv.Itoa(i))
+    }
+    fill(hdc,R(226,h-102,ui.width-226,102),sideBg)
+    txt(hdc,"Online significa acesso a metadados, não licença ou disponibilidade de manifests.",R(left,h-94,mainW,22),muted,ui.miniFont,dtLeft)
+    bottomY:=h-64
+    ui.button(hdc,R(left,bottomY,190,43),"VERIFICAR FONTES","sources_check",false)
+    ui.button(hdc,R(left+201,bottomY,214,43),"ATUALIZAR CATÁLOGO","sources_sync",true)
+    ui.button(hdc,R(left+426,bottomY,132,43),"VOLTAR","filter:all",false)
+    if ui.busy {txt(hdc,"Processando...",R(left+570,bottomY,mainW-570,42),teal,ui.smallFont,dtLeft)}
 }
 
 func formatInt(n int) string {
@@ -696,6 +724,23 @@ func handleAction(action string) {
 				updateResults()
 			}
 		}
+    case action == "sources_check":
+        writeMessage("Consultando serviços públicos da Steam e do GameList...")
+        go refreshSourceHealth()
+    case action == "sources_sync":
+        if ask("Atualizar catálogo pela internet?", "Baixar a última base pública SteamTools-Team/GameList?\n\nOs registros de jogos e DLCs serão atualizados apenas no Astronyx. A Steam não será modificada.") {
+            ui.busy=true
+            writeMessage("Baixando catálogo público do GitHub e validando...")
+            go func(){
+                ctx,cancel:=context.WithTimeout(context.Background(),2*time.Minute)
+                defer cancel()
+                store,err:=downloadPublicCatalogue(ctx,newPublicHTTPClient(),gameListArchiveURL,ui.app.dataDir)
+                catalogMu.Lock()
+                catalogCandidate,catalogErr=store,err
+                catalogMu.Unlock()
+                pPostMessage.Call(ui.hwnd,wmApp+2,0,0)
+            }()
+        }
 	case action == "all":
 		if ask("Adicionar tudo à coleção?", fmt.Sprintf("Adicionar os %s jogos e DLCs do catálogo à coleção LOCAL do Astronyx?\n\nIsso NÃO instala, ativa ou desbloqueia jogos na Steam.", formatInt(ui.app.store.TotalGameDLC))) {
 			if err := ui.app.selection.AddAllGamesDLC(); err != nil {
@@ -869,4 +914,18 @@ func refreshUpdater() {
 	receivedUpdate = status
 	updateMu.Unlock()
 	pPostMessage.Call(ui.hwnd, wmApp+1, 0, 0)
+}
+
+var sourceHealthMu sync.Mutex
+var sourceHealthResult []ProviderHealth
+
+func refreshSourceHealth(){
+    if ui==nil || ui.app==nil {return}
+    ctx,cancel:=context.WithTimeout(context.Background(),27*time.Second)
+    defer cancel()
+    result:=checkPublicSources(ctx,newPublicHTTPClient(),steamServiceProbe,gameListServiceProbe)
+    sourceHealthMu.Lock()
+    sourceHealthResult=result
+    sourceHealthMu.Unlock()
+    pPostMessage.Call(ui.hwnd,wmApp+6,0,0)
 }
