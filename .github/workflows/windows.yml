@@ -27,7 +27,7 @@ jobs:
           UPDATE_FEED_URL: ${{ vars.UPDATE_FEED_URL }}
           UPDATE_PUBLIC_KEY: ${{ vars.UPDATE_PUBLIC_KEY }}
         run: |
-          $version = '2.3.0'
+          $version = '2.4.0'
           if ('${{ github.ref_type }}' -eq 'tag') { $version = '${{ github.ref_name }}'.TrimStart('v') }
           $ldflags = "-H=windowsgui -s -w -X main.appVersion=$version"
           if ($env:UPDATE_FEED_URL -and $env:UPDATE_PUBLIC_KEY) {

@@ -1,4 +1,4 @@
-# Astronyx Steam Manager V2.2.1 — aplicativo Windows nativo
+# Astronyx Steam Manager V2.4 — aplicativo Windows nativo
 
 **Janela própria de verdade:** o aplicativo usa diretamente a API Win32 para desenhar a interface e receber cliques, com tema escuro/preto e roxo. **Não inicia servidor HTTP e não abre guia do navegador.** Um executável Windows x64, sem dependência de navegador, Go ou Python no computador do usuário.
 
@@ -87,9 +87,41 @@ Referências de pesquisa: [LuaTools](https://github.com/madoiscool/LuaTools), [W
 
 ## V2.3 — Consulta de fontes públicas e sincronização direta
 
-A aba **Fontes** verifica em segundo plano a disponibilidade da Steam Store e do repositório público [SteamTools-Team/GameList](https://github.com/SteamTools-Team/GameList), sem abrir navegador. **ONLINE indica apenas que o serviço de metadados respondeu; não indica download, chave de depot ou licença.**
+A aba **Fontes** agora consulta, em segundo plano, a disponibilidade de duas fontes de metadados públicos: Steam Store e SteamTools-Team/GameList. **Status online significa apenas que a API de metadados respondeu**, nunca que jogos ou DLCs estejam liberados para download.
 
-- **VERIFICAR FONTES:** atualiza o indicador da Steam Store e do GameList, sem solicitar dados de login.
-- **ATUALIZAR CATÁLOGO:** baixa o ZIP do GameList via HTTPS, limita tamanho, verifica seus JSON e App IDs e só então grava a base no diretório local do Astronyx. Erros não alteram o catálogo anterior.
-- **Sadie/Hubcap, Luie, Ryuu, Morrenus e espelhos comunitários:** continuam listados como **referências não conectadas**; o aplicativo não baixa seus scripts nem solicita tokens.
-- A sincronização é sob demanda, e os testes de disponibilidade ocorrem na abertura e periodicamente durante o uso. Nenhum arquivo da instalação Steam é modificado por essas operações.
+- **VERIFICAR FONTES** atualiza o status visível na janela, sem abrir navegador.
+- **ATUALIZAR CATÁLOGO** baixa um ZIP público do GameList por HTTPS, valida seu conteúdo e seus App IDs, e só depois grava a base em `%APPDATA%\\Astronyx\\SteamManager`. Se houver falha, a base anterior permanece.
+- Sadie/Hubcap, Luie, Ryuu, espelhos GitHub de terceiros e Morrenus continuam exibidos **somente como referências não conectadas**. O programa não importa scripts dessas fontes, não coleta tokens/cookies e não modifica a biblioteca ou licenças Steam.
+- A sincronização é sob demanda; não exige download completo da Steam nem aceita URLs arbitrárias. O status é consultado automaticamente ao abrir o app.
+
+Fonte de dados: https://github.com/SteamTools-Team/GameList ; referência de API: https://store.steampowered.com/api/appdetails?appids=440
+
+## V2.4 — Manifest Manager (sem modificar a Steam)
+
+Abra a aba **Arquivos LUA** dentro da janela do Astronyx.
+
+1. **LER STEAM** detecta a instalação da Steam e lista arquivos `.lua` e `.manifest` com nomes numéricos em `config/stplug-in`. A operação é somente leitura.
+2. **BACKUP LOCAL** copia os arquivos detectados para a pasta privada do Astronyx (`%APPDATA%\Astronyx\SteamManager\imports`) com SHA-256 e deduplicação. Nenhum original é apagado, movido, alterado ou executado.
+3. **ÍNDICE JSON** carrega um catálogo de URLs HTTPS para arquivos que você está autorizado a baixar. O arquivo é validado e lembrado nas próximas aberturas do aplicativo.
+4. **BAIXAR ARQUIVOS** permite baixar todos os itens do índice após confirmação, verificar SHA-256 arquivo a arquivo e salvá-los **somente no Astronyx**. O progresso aparece na janela e o botão **CANCELAR** interrompe a fila.
+
+O índice deve ser criado por quem hospeda os arquivos com autorização. Exemplo (substitua URLs e SHA-256 por valores **verdadeiros**):
+
+```json
+{
+  "format": "astronyx-manifests-v1",
+  "source": "Meu acervo autorizado",
+  "authorized": true,
+  "files": [
+    {
+      "name": "440.manifest",
+      "url": "https://arquivos.exemplo.com/440.manifest",
+      "sha256": "COLOQUE_AQUI_O_SHA256_REAL_COM_64_DIGITOS_HEXADECIMAIS"
+    }
+  ]
+}
+```
+
+**Limitações e proteções:** aceita nomes como `12345.lua` / `12345.manifest`, somente URLs HTTPS, SHA-256 obrigatório, até 60 mil entradas no índice, 16 MB por arquivo e 1 GB por execução. A aplicação ignora arquivos incorretos ou repetidos. O campo `authorized` é uma declaração do fornecedor/usuário, não uma verificação de licenças da Steam. O aplicativo **não consulta nem baixa automaticamente** conteúdo de Sadie, Luie, Ryuu ou qualquer fonte de desbloqueio, e não instala manifests na Steam nem concede acesso a jogos/DLCs não adquiridos.
+
+A compilação em Windows é feita pelo GitHub Actions; o `.exe` local pode ser compilado com `COMPILAR-WINDOWS.bat`. O feed de atualização automática ainda precisa de configuração; commits no GitHub não atualizam automaticamente instalações existentes.
