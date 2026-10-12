@@ -1,4 +1,4 @@
-# Astronyx Steam Manager V2.2 — aplicativo Windows nativo
+# Astronyx Steam Manager V2.2.1 — aplicativo Windows nativo
 
 **Janela própria de verdade:** o aplicativo usa diretamente a API Win32 para desenhar a interface e receber cliques, com tema escuro/preto e roxo. **Não inicia servidor HTTP e não abre guia do navegador.** Um executável Windows x64, sem dependência de navegador, Go ou Python no computador do usuário.
 
@@ -76,3 +76,11 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags='-H=windowsg
 **Verificações feitas nesta entrega:** 253.515 entradas contadas e carregadas corretamente, adição em massa 250.696, busca, persistência, importações inválidas, testes de biblioteca Steam e validação criptográfica; `go test ./...`, `go vet` do alvo Windows e compilação `PE32+` bem-sucedidos. **A interface Win32 e a instalação do updater ainda precisam ser testadas no Windows real**; compilação cruzada não equivale a teste da janela/execução.
 
 O Astronyx é um aplicativo independente, não oficial e não afiliado à Valve, Steam, SteamTools ou LuaTools. Nada é enviado a serviços externos exceto consultas à API pública da Steam iniciadas pelo usuário e consultas ao feed de atualização configurado.
+
+## V2.2.1 — fontes comunitárias (visualização informativa)
+
+A nova aba **Fontes** identifica provedores vistos no ecossistema LuaTools: Sadie (Hubcap), Luie, Ryuu, espelhos GitHub e Morrenus. Para cada um, o painel indica tipo de serviço, requisitos conhecidos, situação **não conectado** e referência documental. A interface é completamente local e não abre o navegador para navegar pelo painel.
+
+Este recurso **não baixa manifests de terceiros, não transfere chaves de depots, não modifica a Steam, não desbloqueia DLCs ou jogos não licenciados**. Os serviços listados são independentes do Astronyx, podem mudar sem aviso, e os requisitos de acesso não são garantias de disponibilidade. Não é necessário inserir cookies, senhas ou chaves no app.
+
+Referências de pesquisa: [LuaTools](https://github.com/madoiscool/LuaTools), [Wiki de atualização de manifests](https://github.com/madoiscool/LuaTools-Wiki/blob/main/docs/luatools/scripts/manifest-updater.mdx), [Ryuu FAQ](https://generator.ryuu.lol/faq).

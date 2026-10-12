@@ -208,6 +208,14 @@ func selectText(hwnd uintptr) string {
 	return syscall.UTF16ToString(buf)
 }
 func updateResults() {
+    if ui.filter == "sources" {
+        ui.offset = 0
+        ui.rows = nil
+        ui.total = len(knownManifestProviders())
+        ui.selectedCount = ui.app.selection.Count(ui.app.store)
+        invalidate()
+        return
+    }
 	if ui.offset < 0 {
 		ui.offset = 0
 	}
@@ -227,14 +235,14 @@ func runDesktop(app *App) {
 	ui.update = UpdateStatus{Current: appVersion}
 	ui.editBrush, _, _ = pCreateBrush.Call(inputBg)
 	hInstance, _, _ := k32.NewProc("GetModuleHandleW").Call(0)
-	wc := wndClass{Size: uint32(unsafe.Sizeof(wndClass{})), Instance: hInstance, ClassName: wptr("AstronyxSteamManagerNativeV22"), WndProc: syscall.NewCallback(wndProc)}
+	wc := wndClass{Size: uint32(unsafe.Sizeof(wndClass{})), Instance: hInstance, ClassName: wptr("AstronyxSteamManagerNativeV221"), WndProc: syscall.NewCallback(wndProc)}
 	wc.Cursor, _, _ = pLoadCursor.Call(0, 32512) // IDC_ARROW
 	a, _, e := pRegisterClassEx.Call(uintptr(unsafe.Pointer(&wc)))
 	if a == 0 {
 		showError("Não foi possível criar classe de janela: " + e.Error())
 		return
 	}
-	hwnd, _, e := pCreateWindow.Call(0, uintptr(unsafe.Pointer(wc.ClassName)), uintptr(unsafe.Pointer(wptr("Astronyx Steam Manager · V2.2"))), wsOverlappedWindow|wsVisible, 70, 55, 1240, 830, 0, 0, hInstance, 0)
+	hwnd, _, e := pCreateWindow.Call(0, uintptr(unsafe.Pointer(wc.ClassName)), uintptr(unsafe.Pointer(wptr("Astronyx Steam Manager · V2.2.1"))), wsOverlappedWindow|wsVisible, 70, 55, 1240, 830, 0, 0, hInstance, 0)
 	if hwnd == 0 {
 		showError("Não foi possível abrir o aplicativo: " + e.Error())
 		return
@@ -485,7 +493,7 @@ func paint(hdc uintptr) {
 	txt(hdc, "ASTRONYX", R(81, 30, 138, 30), fg, ui.font, dtLeft)
 	txt(hdc, "STEAM MANAGER", R(81, 53, 130, 20), muted, ui.miniFont, dtLeft)
 	txt(hdc, "BIBLIOTECA", R(27, 117, 170, 20), muted, ui.miniFont, dtLeft)
-	opts := []struct{ tab, name string }{{"all", "Todos os itens"}, {"game", "Jogos"}, {"dlc", "DLCs"}, {"software", "Programas"}, {"selected", "Minha coleção"}}
+	opts := []struct{ tab, name string }{{"all", "Todos os itens"}, {"game", "Jogos"}, {"dlc", "DLCs"}, {"software", "Programas"}, {"selected", "Minha coleção"}, {"sources", "Fontes"}}
 	for i, opt := range opts {
 		y := int32(150 + i*56)
 		r := R(15, y, 196, 43)
@@ -505,7 +513,7 @@ func paint(hdc uintptr) {
 	items, _ := ui.app.manifests.snapshot()
 	txt(hdc, fmt.Sprintf("%d manifests importados", len(items)), R(31, h-144, 170, 24), muted, ui.miniFont, dtLeft)
 	ui.button(hdc, R(29, h-105, 169, 37), "ABRIR PASTA", "folder", false)
-	txt(hdc, "V2.2 · APP NATIVO", R(32, h-49, 173, 22), muted, ui.miniFont, dtLeft)
+	txt(hdc, "V2.2.1 · APP NATIVO", R(32, h-49, 173, 22), muted, ui.miniFont, dtLeft)
 	left := int32(256)
 	mainW := w - left - 26
 	txt(hdc, "Sua biblioteca Steam, organizada.", R(left, 26, mainW-200, 38), fg, ui.titleFont, dtLeft)
@@ -525,6 +533,10 @@ func paint(hdc uintptr) {
 	stat(hdc, R(left, 112, cw, 100), "NO CATÁLOGO", formatInt(len(ui.app.store.Entries)), "Registros indexados")
 	stat(hdc, R(left+cw+gap, 112, cw, 100), "JOGOS + DLCs", formatInt(ui.app.store.TotalGameDLC), "Prontos para adicionar")
 	stat(hdc, R(left+2*(cw+gap), 112, cw, 100), "MINHA COLEÇÃO", formatInt(ui.selectedCount), "Entradas salvas")
+    if ui.filter == "sources" {
+        paintManifestSources(hdc, left, mainW, h)
+        return
+    }
 	txt(hdc, "PESQUISAR", R(left, 230, 180, 23), muted, ui.miniFont, dtLeft)
 	// A real Win32 EDIT control is positioned inside this backdrop.
 	round(hdc, R(left, 259, mainW, 51), inputBg, 12)
@@ -592,6 +604,27 @@ func paint(hdc uintptr) {
 		txt(hdc, "Processando...", R(w-172, h-113, 144, 25), teal, ui.miniFont, dtRight)
 	}
 }
+// paintManifestSources is an in-app reference view, not a download or unlocker.
+func paintManifestSources(hdc uintptr, left, mainW, h int32) {
+    txt(hdc, "FONTES DE MANIFESTS", R(left, 236, mainW, 34), fg, ui.font, dtLeft)
+    txt(hdc, "Fontes independentes vistas na comunidade LuaTools. Nenhum provedor conectado.", R(left, 269, mainW, 26), muted, ui.smallFont, dtLeft)
+    sources := knownManifestProviders()
+    for i, source := range sources {
+        y := int32(309 + i*73)
+        if y+65 >= h-90 { break }
+        round(hdc, R(left, y, mainW, 66), panel, 12)
+        txt(hdc, source.Name, R(left+18, y+4, mainW-215, 30), fg, ui.font, dtLeft)
+        txt(hdc, source.Kind+"  •  "+source.Access, R(left+18, y+34, mainW-220, 23), muted, ui.smallFont, dtLeft)
+        pill := R(left+mainW-194, y+16, 176, 35)
+        round(hdc, pill, panelAlt, 10)
+        txt(hdc, "DETALHES", pill, fg, ui.smallFont, dtCenter)
+        ui.spot(pill, "source:"+strconv.Itoa(i))
+    }
+    fill(hdc, R(226, h-94, ui.width-226, 94), sideBg)
+    txt(hdc, "Arquivos públicos não concedem licenças Steam; nenhuma ativação é realizada.", R(left, h-82, mainW, 27), muted, ui.smallFont, dtLeft)
+    ui.button(hdc, R(left, h-48, 172, 35), "VOLTAR", "filter:all", false)
+}
+
 func formatInt(n int) string {
 	str := strconv.Itoa(n)
 	for i := len(str) - 3; i > 0; i -= 3 {
@@ -613,6 +646,11 @@ func placeSearch() {
 	if width < 100 {
 		width = 100
 	}
+    if ui.filter == "sources" {
+        pShowWindow.Call(ui.searchEdit, 0)
+        return
+    }
+    pShowWindow.Call(ui.searchEdit, swShow)
 	pMoveWindow.Call(ui.searchEdit, 273, 270, uintptr(width), 31, 1)
 }
 func handleAction(action string) {
@@ -634,10 +672,20 @@ func handleAction(action string) {
 			inspectionMu.Unlock()
 			pPostMessage.Call(ui.hwnd, wmApp+5, 0, 0)
 		}()
+    case strings.HasPrefix(action, "source:"):
+        i, e := strconv.Atoi(strings.TrimPrefix(action, "source:"))
+        sources := knownManifestProviders()
+        if e == nil && i >= 0 && i < len(sources) {
+            src := sources[i]
+            info := src.Kind + "\nAcesso: " + src.Access + "\nSituação: não conectado\n\n" + src.Notes
+            if src.Website != "" { info += "\n\nReferência: " + src.Website }
+            notify(src.Name, info)
+        }
 	case strings.HasPrefix(action, "filter:"):
 		ui.filter = strings.TrimPrefix(action, "filter:")
 		ui.offset = 0
 		updateResults()
+        placeSearch()
 	case strings.HasPrefix(action, "toggle:"):
 		id, _ := strconv.ParseUint(strings.TrimPrefix(action, "toggle:"), 10, 64)
 		if index, ok := ui.app.store.ByID[id]; ok {
