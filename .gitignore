@@ -1,0 +1,16 @@
+# Keep the bundled public GameList catalogue tracked.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*_private_key*
+*.previous
+*.exe
+release/
+*.zip
+!assets/GameList-main.zip
+.DS_Store
+.vscode/
+.idea/
